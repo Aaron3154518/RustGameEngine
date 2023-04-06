@@ -1,16 +1,31 @@
 #[macro_export]
 macro_rules! enum_type {
     ($n:ident, $($e:tt), *) => {
-        #[derive(Debug)]
+        #[derive(Debug, PartialEq)]
         enum $n {
             $($e),*
         }
 
         impl<T> std::cmp::PartialEq<T> for $n {
-            fn eq(&self, other: &T) -> bool {
+            default fn eq(&self, other: &T) -> bool {
                 false
             }
         }
+
+        // impl<En: std::cmp::PartialEq, En2> std::cmp::PartialEq<En2> for Message<En> {
+        //     default fn eq(&self, _other: &En2) -> bool {
+        //         false
+        //     }
+        // }
+
+        // impl<En2, En: std::cmp::PartialEq + std::cmp::PartialEq<En2>> std::cmp::PartialEq<En2>
+        //     for Message<En>
+        // {
+        //     fn eq(&self, other: &En2) -> bool {
+        //         self.code == *other
+        //     }
+        // }
+
     };
 }
 

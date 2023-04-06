@@ -120,28 +120,24 @@
 //     // msg_bus.subscribe("A::Y", A::Y);
 // }
 
-trait Signal {
-    fn val(&self) -> u8 {
-        0
-    }
+trait Signal<T> {
+    fn val(&self) -> T;
 }
 
-trait Slot {
-    fn receive_val(&self, val: u8) {
-        println!("Default: {}", val)
-    }
+trait Slot<T, U: Signal<T>> {
+    fn receive_val(&self, val: T);
 }
 
-struct Container {
-    slots: Vec<Box<dyn Slot>>,
+struct Container<T, U> {
+    slots: Vec<Box<dyn Slot<T, U>>>,
 }
 
-impl Container {
-    fn add_slot<T: Slot + 'static>(&mut self, slot: T) {
+impl<T, U: Signal<T>> Container<T, U> {
+    fn add_slot<V: Slot<T, U> + 'static>(&mut self, slot: V) {
         self.slots.push(Box::new(slot));
     }
 
-    fn send_signal<T: Signal>(&self, sig: &T) {
+    fn send_signal<V: Signal<T>>(&self, sig: &V) {
         for slot in &self.slots {
             (*slot).receive_val(sig.val());
         }
@@ -149,14 +145,14 @@ impl Container {
 }
 
 struct TestSignal {}
-impl Signal for TestSignal {
+impl Signal<u8> for TestSignal {
     fn val(&self) -> u8 {
         10
     }
 }
 
 struct TestSlot {}
-impl Slot for TestSlot {
+impl Slot<u8, TestSignal> for TestSlot {
     fn receive_val(&self, val: u8) {
         println!("TestSlot: {}", val)
     }
@@ -164,7 +160,7 @@ impl Slot for TestSlot {
 
 pub fn test() {
     println!("Test");
-    let mut container: Container = Container { slots: vec![] };
+    let mut container: Container<u8, TestSignal> = Container { slots: vec![] };
     let sig: TestSignal = TestSignal {};
     let slot: TestSlot = TestSlot {};
     container.add_slot(slot);

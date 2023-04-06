@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::enums::{Enum, Eq, Stringify};
+use crate::enums::{Enum, Eq, New, Stringify};
 use crate::{enum_type, enum_union};
 
 // Enums
@@ -62,21 +62,46 @@ macro_rules! message {
 message!(MyMessage, MyMessageEnum, A, B);
 message!(OtherMessage, OtherMessageEnum, A);
 
-// Message bus
-// trait SubTrait {
-//     fn call<T>(&self, t: T);
-// }
+enum_union!(Master, MyMessageEnum, OtherMessageEnum);
 
-struct Subscription {
-    id: u128,
-    cb: Box<dyn Fn()>,
+// Message bus
+trait SubTrait {
+    fn get_id(&self) -> u128;
+    fn call<'a>(&'a self, v: &'a Master) -> Option<Box<dyn Fn() + '_>>;
 }
 
-// impl<T> SubTrait for Subscription<T> {
-//     fn call(&self, t: T) {
-//         (self.cb)(t);
-//     }
-// }
+struct Subscription<T> {
+    id: u128,
+    cb: Box<dyn Fn(&T)>,
+}
+
+impl<T> SubTrait for Subscription<T> {
+    fn get_id(&self) -> u128 {
+        self.id
+    }
+
+    default fn call<'a>(&'a self, _v: &'a Master) -> Option<Box<dyn Fn() + '_>> {
+        None
+    }
+}
+
+impl SubTrait for Subscription<MyMessageEnum> {
+    fn call<'a>(&'a self, v: &'a Master) -> Option<Box<dyn Fn() + '_>> {
+        match v {
+            Master::MyMessageEnum(x) => Some(Box::new(move || (self.cb)(x))),
+            _ => None,
+        }
+    }
+}
+
+impl SubTrait for Subscription<OtherMessageEnum> {
+    fn call<'a>(&'a self, v: &'a Master) -> Option<Box<dyn Fn() + '_>> {
+        match v {
+            Master::OtherMessageEnum(x) => Some(Box::new(move || (self.cb)(x))),
+            _ => None,
+        }
+    }
+}
 
 struct SubscriptionHandle {
     id: u128,
@@ -84,22 +109,22 @@ struct SubscriptionHandle {
 }
 
 struct MessageBus {
-    subs: HashMap<&'static str, Vec<Subscription>>,
+    subs: HashMap<&'static str, Vec<Box<dyn SubTrait>>>,
 }
 
 impl MessageBus {
-    fn subscribe<U, T: MessageTrait<U>>(&mut self, cb: &'static dyn Fn()) -> SubscriptionHandle {
+    fn subscribe<U, T: MessageTrait<U>>(&mut self, cb: &'static dyn Fn(&U)) -> SubscriptionHandle {
         let id: u128 = self.subs.len() as u128;
         let sub = Subscription {
             id: id,
             cb: Box::new(cb),
         };
         match self.subs.get_mut(T::NAME) {
-            Some(v) => v.push(sub),
+            Some(v) => v.push(Box::new(sub)),
             None => {
                 self.subs.insert(T::NAME, Vec::new());
                 match self.subs.get_mut(T::NAME) {
-                    Some(v) => v.push(sub),
+                    Some(v) => v.push(Box::new(sub)),
                     None => {
                         println!(
                             "MessageBus::subscribe() - Failed to create new subscription vector for {}", T::NAME
@@ -108,15 +133,12 @@ impl MessageBus {
                 }
             }
         }
-        SubscriptionHandle {
-            id: id,
-            name: T::NAME,
-        }
+        SubscriptionHandle { id, name: T::NAME }
     }
 
     fn unsubscribe(&mut self, handle: SubscriptionHandle) {
         match self.subs.get_mut(handle.name) {
-            Some(v) => match v.iter().position(|sub| sub.id == handle.id) {
+            Some(v) => match v.iter().position(|sub| sub.get_id() == handle.id) {
                 Some(i) => {
                     v.remove(i);
                 }
@@ -132,11 +154,20 @@ impl MessageBus {
         }
     }
 
-    fn send_message<U, T: MessageTrait<U>>(&self, _msg: T) {
+    fn send_message<U, T: MessageTrait<U>>(&self, msg: T)
+    where
+        Master: New<U>,
+    {
         match self.subs.get(T::NAME) {
             Some(v) => {
                 for sub in v {
-                    (sub.cb)();
+                    match sub.call(&Master::new(msg.get_code())) {
+                        Some(f) => (f)(),
+                        None => println!(
+                            "MessageBus::send_message() - Could not call callback got {}",
+                            T::NAME,
+                        ),
+                    };
                 }
             }
             None => println!(
@@ -189,7 +220,9 @@ pub fn test() {
     let mut mb = MessageBus {
         subs: HashMap::new(),
     };
-    let sub = mb.subscribe::<MyMessageEnum, MyMessage>(&|| println!("Hello From Callback"));
+    let sub = mb.subscribe::<MyMessageEnum, MyMessage>(&|v: &MyMessageEnum| {
+        println!("Hello From Callback {}", v)
+    });
     println!("Sub Id: {}", sub.id);
     mb.send_message(msg);
     mb.send_message(OtherMessage::new(A::Z));

@@ -1,2 +1,7 @@
 *.exe
 *.pdb
+.vscode
+
+# Added by cargo
+
+/target

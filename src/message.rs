@@ -1,78 +1,31 @@
 use std::collections::HashMap;
+use std::marker::PhantomData;
 
-use crate::enums::{Enum, Eq, New, Stringify};
-use crate::{enum_type, enum_union};
-
-// Enums
-enum_type!(A, Y, Z);
-enum_type!(B, S, T);
-enum_union!(AB, A, B);
-
-// Messages
-struct Message<T: Eq> {
-    code: T,
-}
-
-impl<T: Enum, U> std::cmp::PartialEq<U> for Message<T> {
-    default fn eq(&self, other: &U) -> bool {
-        self.code.equals(other)
-    }
-}
+use crate::enum_union;
+use crate::enums;
+use crate::enums::New;
+use crate::test::{MyMessageEnum, OtherMessageEnum};
 
 // Message extensions
-trait Constructor<T> {
+pub trait Constructor<T> {
     fn new(t: T) -> Self;
 }
 
-trait MessageTrait<T> {
+pub trait MessageTrait<T> {
     const NAME: &'static str = "";
 
     fn get_code(&self) -> T;
 }
 
-#[macro_export]
-macro_rules! message {
-    ($n: ident, $n1: ident, $($e: ident),+) => {
-        enum_union!($n1, $($e),*);
-
-        struct $n {
-            msg: Message<$n1>,
-        }
-
-        $(impl Constructor<$e> for $n {
-            fn new(e: $e) -> $n {
-                $n {
-                    msg: Message {
-                        code: $n1::$e(e)
-                    }
-                }
-            }
-        })*
-
-        impl MessageTrait<$n1> for $n {
-            const NAME: &'static str = stringify!($n);
-
-            fn get_code(&self) -> $n1 {
-                self.msg.code
-            }
-        }
-    };
-}
-
-message!(MyMessage, MyMessageEnum, A, B);
-message!(OtherMessage, OtherMessageEnum, A);
-
-enum_union!(Master, MyMessageEnum, OtherMessageEnum);
-
-// Message bus
-trait SubTrait {
+// Subscriptions
+pub trait SubTrait {
     fn get_id(&self) -> u128;
     fn call<'a>(&'a self, v: &'a Master) -> Option<Box<dyn Fn() + '_>>;
 }
 
-struct Subscription<T> {
+pub struct Subscription<T> {
     id: u128,
-    cb: Box<dyn Fn(&T)>,
+    pub(crate) cb: Box<dyn Fn(&T)>,
 }
 
 impl<T> SubTrait for Subscription<T> {
@@ -85,35 +38,96 @@ impl<T> SubTrait for Subscription<T> {
     }
 }
 
-impl SubTrait for Subscription<MyMessageEnum> {
-    fn call<'a>(&'a self, v: &'a Master) -> Option<Box<dyn Fn() + '_>> {
-        match v {
-            Master::MyMessageEnum(x) => Some(Box::new(move || (self.cb)(x))),
-            _ => None,
+// Messages
+#[macro_export]
+macro_rules! message {
+    ($n: ident, $n1: ident, $($e: ident),+) => {
+        enum_union!($n1, $($e),*);
+
+        pub struct $n {
+            code: $n1,
         }
+
+        $(impl message::Constructor<$e> for $n {
+            fn new(e: $e) -> $n {
+                $n { code: $n1::$e(e) }
+            }
+        })*
+
+        impl message::MessageTrait<$n1> for $n {
+            const NAME: &'static str = stringify!($n);
+
+            fn get_code(&self) -> $n1 {
+                self.code
+            }
+        }
+
+        impl message::SubTrait for message::Subscription<$n1> {
+            fn call<'a>(&'a self, v: &'a message::Master) -> Option<Box<dyn Fn() + '_>> {
+                match v {
+                    message::Master::$n1(x) => Some(Box::new(move || (self.cb)(x))),
+                    _ => None,
+                }
+            }
+        }
+    };
+}
+
+enum_union!(Master, MyMessageEnum, OtherMessageEnum);
+
+// Subscription traits
+pub trait SubscriptionHandleTrait {
+    type U;
+    type T: MessageTrait<Self::U>;
+
+    fn get_id(&self) -> u128;
+    fn get_name(&self) -> &'static str {
+        Self::T::NAME
     }
 }
 
-impl SubTrait for Subscription<OtherMessageEnum> {
-    fn call<'a>(&'a self, v: &'a Master) -> Option<Box<dyn Fn() + '_>> {
-        match v {
-            Master::OtherMessageEnum(x) => Some(Box::new(move || (self.cb)(x))),
-            _ => None,
-        }
-    }
-}
+pub struct SubscriptionHandle<U, T: MessageTrait<U>> {
+    u: PhantomData<U>,
+    t: PhantomData<T>,
 
-struct SubscriptionHandle {
     id: u128,
-    name: &'static str,
 }
 
-struct MessageBus {
+impl<U, T: MessageTrait<U>> SubscriptionHandle<U, T> {
+    pub fn new(id: u128) -> SubscriptionHandle<U, T> {
+        SubscriptionHandle {
+            u: PhantomData,
+            t: PhantomData,
+            id: id,
+        }
+    }
+}
+
+impl<U, T: MessageTrait<U>> SubscriptionHandleTrait for SubscriptionHandle<U, T> {
+    type U = U;
+    type T = T;
+
+    fn get_id(&self) -> u128 {
+        self.id
+    }
+}
+
+// MessageBus
+pub struct MessageBus {
     subs: HashMap<&'static str, Vec<Box<dyn SubTrait>>>,
 }
 
 impl MessageBus {
-    fn subscribe<U, T: MessageTrait<U>>(&mut self, cb: &'static dyn Fn(&U)) -> SubscriptionHandle {
+    pub fn new() -> Self {
+        MessageBus {
+            subs: HashMap::new(),
+        }
+    }
+
+    pub fn subscribe<U, T: MessageTrait<U>>(
+        &mut self,
+        cb: &'static dyn Fn(&U),
+    ) -> SubscriptionHandle<U, T> {
         let id: u128 = self.subs.len() as u128;
         let sub = Subscription {
             id: id,
@@ -133,30 +147,30 @@ impl MessageBus {
                 }
             }
         }
-        SubscriptionHandle { id, name: T::NAME }
+        SubscriptionHandle::new(id)
     }
 
-    fn unsubscribe(&mut self, handle: SubscriptionHandle) {
-        match self.subs.get_mut(handle.name) {
-            Some(v) => match v.iter().position(|sub| sub.get_id() == handle.id) {
+    pub fn unsubscribe(&mut self, handle: impl SubscriptionHandleTrait) {
+        match self.subs.get_mut(handle.get_name()) {
+            Some(v) => match v.iter().position(|sub| sub.get_id() == handle.get_id()) {
                 Some(i) => {
                     v.remove(i);
                 }
                 None => println!(
                     "MessageBus::unsubscribe() - No subscription with id {}",
-                    handle.id
+                    handle.get_id()
                 ),
             },
             None => println!(
                 "MessageBus::unsubscribe() - No subscription of type {}",
-                handle.name
+                handle.get_name()
             ),
         }
     }
 
-    fn send_message<U, T: MessageTrait<U>>(&self, msg: T)
+    pub fn send_message<U, T: MessageTrait<U>>(&self, msg: T)
     where
-        Master: New<U>,
+        Master: enums::New<U>,
     {
         match self.subs.get(T::NAME) {
             Some(v) => {
@@ -176,61 +190,4 @@ impl MessageBus {
             ),
         }
     }
-}
-
-// Test
-pub fn test() {
-    println!("Test");
-
-    println!(
-        "{} {} {}",
-        A::Y.equals(&A::Y),
-        A::Y.equals(&A::Z),
-        A::Y.equals(&B::T)
-    );
-
-    let msg = Message { code: AB::A(A::Y) };
-    println!("{} {} {}", msg == A::Y, msg == A::Z, msg == B::T);
-
-    let ab = AB::A(A::Y);
-    println!("{} {} {}", ab == A::Y, ab == A::Z, ab == B::T);
-    println!(
-        "{} {} {}",
-        ab.equals(&A::Y),
-        ab.equals(&A::Z),
-        ab.equals(&B::T)
-    );
-
-    println!(
-        "{} {} {} {}",
-        A::Y.to_str(),
-        A::Z.to_str(),
-        B::T.to_str(),
-        ab.to_str()
-    );
-
-    let msg = MyMessage {
-        msg: Message {
-            code: MyMessageEnum::A(A::Y),
-        },
-    };
-    let msg2 = MyMessage::new(B::S);
-    println!("{} {}", msg.msg.code, msg2.msg.code);
-
-    let mut mb = MessageBus {
-        subs: HashMap::new(),
-    };
-    let sub = mb.subscribe::<MyMessageEnum, MyMessage>(&|v: &MyMessageEnum| {
-        println!("Hello From Callback {}", v)
-    });
-    println!("Sub Id: {}", sub.id);
-    mb.send_message(msg);
-    mb.send_message(OtherMessage::new(A::Z));
-    mb.unsubscribe(SubscriptionHandle {
-        id: 2,
-        name: "MyMessage",
-    });
-    mb.unsubscribe(sub);
-    mb.send_message(msg2);
-    println!("Shouldn't print");
 }

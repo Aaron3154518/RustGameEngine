@@ -40,13 +40,13 @@ pub trait Enum = Eq + Stringify;
 macro_rules! enum_type {
     ($n:ident, $($e:tt),+) => {
         #[derive(Debug, PartialEq, Clone, Copy)]
-        enum $n {
+        pub enum $n {
             $($e),*
         }
 
-        impl Eq for $n {}
+        impl enums::Eq for $n {}
 
-        impl Stringify for $n {
+        impl enums::Stringify for $n {
             fn to_str(&self) -> &str {
                 stringify!($n)
             }
@@ -58,11 +58,11 @@ macro_rules! enum_type {
 macro_rules! enum_union {
     ($n: ident, $($e: ident),+) => {
         #[derive(PartialEq, Clone, Copy, Debug)]
-        enum $n {
+        pub enum $n {
             $($e($e)),*
         }
 
-        $(impl New<$e> for $n {
+        $(impl enums::New<$e> for $n {
             fn new(t: $e) -> Self {
                 $n::$e(t)
             }
@@ -71,13 +71,13 @@ macro_rules! enum_union {
         $(impl std::cmp::PartialEq<$e> for $n {
             fn eq(&self, other: &$e) -> bool {
                 match self {
-                    $n::$e(v) => v.equals(other),
+                    $n::$e(v) => enums::Eq::equals(v, other),
                     _ => false
                 }
             }
         })*
 
-        impl Eq for $n {
+        impl enums::Eq for $n {
             fn equals<T>(&self, t: &T) -> bool
             where
                 Self: Sized,
@@ -88,7 +88,7 @@ macro_rules! enum_union {
             }
         }
 
-        impl Stringify for $n {
+        impl enums::Stringify for $n {
             fn to_str(&self) -> &str {
                 match self {
                     $($n::$e(v) => v.to_str()),*

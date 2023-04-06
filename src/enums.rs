@@ -29,9 +29,11 @@ pub trait Stringify {
     }
 }
 
+pub trait Enum = Eq + Stringify;
+
 #[macro_export]
 macro_rules! enum_type {
-    ($n:ident, $($e:tt), *) => {
+    ($n:ident, $($e:tt),+) => {
         #[derive(Debug, PartialEq)]
         enum $n {
             $($e),*
@@ -49,7 +51,7 @@ macro_rules! enum_type {
 
 #[macro_export]
 macro_rules! enum_union {
-    ($n: ident, $($e: ident),*) => {
+    ($n: ident, $($e: ident),+) => {
         #[derive(PartialEq)]
         enum $n {
             $($e($e)),*

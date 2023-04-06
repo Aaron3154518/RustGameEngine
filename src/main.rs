@@ -1,4 +1,5 @@
 #![feature(specialization)]
+#![feature(trait_alias)]
 
 mod enums;
 mod message;

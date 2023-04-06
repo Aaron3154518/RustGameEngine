@@ -1,15 +1,55 @@
-use crate::enums::{Eq, Stringify};
+use crate::enums::{Enum, Eq, Stringify};
 use crate::{enum_type, enum_union};
+
+// Enums
+enum_type!(A, Y, Z);
+enum_type!(B, S, T);
+enum_union!(AB, A, B);
 
 struct Message<T: Eq> {
     code: T,
 }
 
-impl<T: Eq, U> std::cmp::PartialEq<U> for Message<T> {
+impl<T: Enum, U> std::cmp::PartialEq<U> for Message<T> {
     default fn eq(&self, other: &U) -> bool {
         self.code.equals(other)
     }
 }
+
+trait Constructor<T> {
+    fn new(t: T) -> Self;
+}
+
+trait MessageTrait {
+    const NAME: &'static str = "";
+}
+
+#[macro_export]
+macro_rules! message {
+    ($n: ident, $n1: ident, $($e: ident),+) => {
+        enum_union!($n1, $($e),*);
+
+        struct $n {
+            msg: Message<$n1>,
+        }
+
+        $(impl Constructor<$e> for $n {
+            fn new(e: $e) -> $n {
+                $n {
+                    msg: Message {
+                        code: $n1::$e(e)
+                    }
+                }
+            }
+        })*
+
+        impl MessageTrait for $n {
+            const NAME: &'static str = stringify!($n);
+        }
+    };
+}
+
+message!(MyMessage, MyMessageEnum, A, B);
 
 // trait SubTrait {
 //     fn get_name(&self) -> &'static str {
@@ -115,11 +155,6 @@ impl<T: Eq, U> std::cmp::PartialEq<U> for Message<T> {
 //     // msg_bus.subscribe("A::Y", A::Y);
 // }
 
-// Enums
-enum_type!(A, Y, Z);
-enum_type!(B, S, T);
-enum_union!(AB, A, B);
-
 // Signal/Slot
 trait Signal<T> {
     fn val(&self) -> T;
@@ -188,6 +223,14 @@ pub fn test() {
         B::T.to_str(),
         ab.to_str()
     );
+
+    let msg = MyMessage {
+        msg: Message {
+            code: MyMessageEnum::A(A::Y),
+        },
+    };
+    let msg2 = MyMessage::new(B::S);
+    println!("{} {}", msg.msg.code, msg2.msg.code);
 
     let mut container: Container<u8, TestSignal> = Container { slots: vec![] };
     let sig: TestSignal = TestSignal {};

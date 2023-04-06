@@ -23,6 +23,12 @@ pub trait Eq {
     }
 }
 
+pub trait Stringify {
+    fn to_str(&self) -> &str {
+        ""
+    }
+}
+
 #[macro_export]
 macro_rules! enum_type {
     ($n:ident, $($e:tt), *) => {
@@ -32,12 +38,18 @@ macro_rules! enum_type {
         }
 
         impl Eq for $n {}
+
+        impl Stringify for $n {
+            fn to_str(&self) -> &str {
+                stringify!($n)
+            }
+        }
     };
 }
 
 #[macro_export]
 macro_rules! enum_union {
-    ($n: ident, $($e:ident),*) => {
+    ($n: ident, $($e: ident),*) => {
         #[derive(PartialEq)]
         enum $n {
             $($e($e)),*
@@ -59,6 +71,14 @@ macro_rules! enum_union {
             {
                 match self {
                     $($n::$e(v) => v.equals(t)),*
+                }
+            }
+        }
+
+        impl Stringify for $n {
+            fn to_str(&self) -> &str {
+                match self {
+                    $($n::$e(v) => v.to_str()),*
                 }
             }
         }

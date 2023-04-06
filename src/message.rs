@@ -1,4 +1,4 @@
-use crate::enums::Eq;
+use crate::enums::{Eq, Stringify};
 use crate::{enum_type, enum_union};
 
 struct Message<T: Eq> {
@@ -179,6 +179,14 @@ pub fn test() {
         ab.equals(&A::Y),
         ab.equals(&A::Z),
         ab.equals(&B::T)
+    );
+
+    println!(
+        "{} {} {} {}",
+        A::Y.to_str(),
+        A::Z.to_str(),
+        B::T.to_str(),
+        ab.to_str()
     );
 
     let mut container: Container<u8, TestSignal> = Container { slots: vec![] };

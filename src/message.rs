@@ -1,45 +1,13 @@
 use crate::enum_type;
+use crate::enums::Eq;
 
-/// Are `T` and `U` are the same type?
-pub fn eq<T, U>(t: &T, u: &U) -> bool {
-    // Helper trait. `VALUE` is false, except for the specialization of the
-    // case where `T == U`.
-    trait TypeEq<U> {
-        fn eq(t: &Self, u: &U) -> bool;
-    }
-
-    // Default implementation.
-    impl<T, U> TypeEq<U> for T {
-        default fn eq(_t: &T, _u: &U) -> bool {
-            false
-        }
-    }
-
-    // Specialization for `T == U`.
-    impl<T: std::cmp::PartialEq> TypeEq<T> for T {
-        fn eq(t: &T, u: &T) -> bool {
-            t == u
-        }
-    }
-
-    <T as TypeEq<U>>::eq(t, u)
-}
-
-struct Message<En: std::cmp::PartialEq> {
+struct Message<En: Eq> {
     code: En,
 }
 
-impl<En: std::cmp::PartialEq, En2> std::cmp::PartialEq<En2> for Message<En> {
-    default fn eq(&self, _other: &En2) -> bool {
-        false
-    }
-}
-
-impl<En2, En: std::cmp::PartialEq + std::cmp::PartialEq<En2>> std::cmp::PartialEq<En2>
-    for Message<En>
-{
-    fn eq(&self, other: &En2) -> bool {
-        self.code == *other
+impl<En: Eq, En2> std::cmp::PartialEq<En2> for Message<En> {
+    default fn eq(&self, other: &En2) -> bool {
+        self.code.equals(other)
     }
 }
 
@@ -77,41 +45,6 @@ impl<En2, En: std::cmp::PartialEq + std::cmp::PartialEq<En2>> std::cmp::PartialE
 
 // fn eq<T, T>(s: &Subscription<T>, m: &Message<T>) -> bool {
 //     true
-// }
-
-trait Eq {
-    fn equ<T>(&self, t: T) -> bool
-    where
-        Self: Sized,
-    {
-        eq::<Self, T>(self, &t)
-    }
-}
-
-#[derive(Debug, PartialEq)]
-enum A {
-    Y,
-    Z,
-}
-impl Eq for A {}
-// impl<T: std::cmp::PartialEq<A> + std::fmt::Debug> std::cmp::PartialEq<T> for A {
-//     default fn eq(&self, other: &T) -> bool {
-//         println!("{:?} {:?}", *self, *other);
-//         match *self {
-//             A::Y => *other == A::Y,
-//             A::Z => *other == A::Z,
-//         }
-//     }
-// }
-#[derive(Debug)]
-enum B {
-    T,
-    U,
-}
-// impl<T> std::cmp::PartialEq<T> for B {
-//     default fn eq(&self, _other: &T) -> bool {
-//         false
-//     }
 // }
 
 // enum SubTypes {
@@ -182,6 +115,11 @@ enum B {
 //     // msg_bus.subscribe("A::Y", A::Y);
 // }
 
+// Enums
+enum_type!(A, Y, Z);
+enum_type!(B, S, T);
+
+// Signal/Slot
 trait Signal<T> {
     fn val(&self) -> T;
 }
@@ -222,7 +160,12 @@ impl Slot<u8, TestSignal> for TestSlot {
 
 pub fn test() {
     println!("Test");
-    println!("{} {} {}", A::Y.equ(A::Y), A::Y.equ(A::Z), A::Y.equ(B::T));
+    println!(
+        "{} {} {}",
+        A::Y.equals(A::Y),
+        A::Y.equals(A::Z),
+        A::Y.equals(B::T)
+    );
     let mut container: Container<u8, TestSignal> = Container { slots: vec![] };
     let sig: TestSignal = TestSignal {};
     let slot: TestSlot = TestSlot {};

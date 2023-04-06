@@ -1,3 +1,28 @@
+trait TypeEq<T> {
+    fn eq(s: &Self, t: &T) -> bool;
+}
+
+impl<S, T> TypeEq<T> for S {
+    default fn eq(_s: &S, _t: &T) -> bool {
+        false
+    }
+}
+
+impl<S: std::cmp::PartialEq> TypeEq<S> for S {
+    fn eq(s: &S, t: &S) -> bool {
+        s == t
+    }
+}
+
+pub trait Eq {
+    fn equals<T>(&self, t: T) -> bool
+    where
+        Self: Sized,
+    {
+        <Self as TypeEq<T>>::eq(self, &t)
+    }
+}
+
 #[macro_export]
 macro_rules! enum_type {
     ($n:ident, $($e:tt), *) => {
@@ -6,26 +31,7 @@ macro_rules! enum_type {
             $($e),*
         }
 
-        impl<T> std::cmp::PartialEq<T> for $n {
-            default fn eq(&self, other: &T) -> bool {
-                false
-            }
-        }
-
-        // impl<En: std::cmp::PartialEq, En2> std::cmp::PartialEq<En2> for Message<En> {
-        //     default fn eq(&self, _other: &En2) -> bool {
-        //         false
-        //     }
-        // }
-
-        // impl<En2, En: std::cmp::PartialEq + std::cmp::PartialEq<En2>> std::cmp::PartialEq<En2>
-        //     for Message<En>
-        // {
-        //     fn eq(&self, other: &En2) -> bool {
-        //         self.code == *other
-        //     }
-        // }
-
+        impl Eq for $n {}
     };
 }
 

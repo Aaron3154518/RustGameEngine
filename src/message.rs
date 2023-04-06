@@ -1,12 +1,12 @@
 use crate::enum_type;
 use crate::enums::Eq;
 
-struct Message<En: Eq> {
-    code: En,
+struct Message<T: Eq> {
+    code: T,
 }
 
-impl<En: Eq, En2> std::cmp::PartialEq<En2> for Message<En> {
-    default fn eq(&self, other: &En2) -> bool {
+impl<T: Eq + std::fmt::Debug, U: std::fmt::Debug> std::cmp::PartialEq<U> for Message<T> {
+    default fn eq(&self, other: &U) -> bool {
         self.code.equals(other)
     }
 }
@@ -162,10 +162,12 @@ pub fn test() {
     println!("Test");
     println!(
         "{} {} {}",
-        A::Y.equals(A::Y),
-        A::Y.equals(A::Z),
-        A::Y.equals(B::T)
+        A::Y.equals(&A::Y),
+        A::Y.equals(&A::Z),
+        A::Y.equals(&B::T)
     );
+    let msg = Message { code: A::Y };
+    println!("{} {} {}", msg == A::Y, msg == A::Z, msg == B::T,);
     let mut container: Container<u8, TestSignal> = Container { slots: vec![] };
     let sig: TestSignal = TestSignal {};
     let slot: TestSlot = TestSlot {};

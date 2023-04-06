@@ -15,11 +15,11 @@ impl<S: std::cmp::PartialEq> TypeEq<S> for S {
 }
 
 pub trait Eq {
-    fn equals<T>(&self, t: T) -> bool
+    fn equals<T>(&self, t: &T) -> bool
     where
         Self: Sized,
     {
-        <Self as TypeEq<T>>::eq(self, &t)
+        <Self as TypeEq<T>>::eq(self, t)
     }
 }
 

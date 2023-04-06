@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::enums::{Enum, Eq, Stringify};
 use crate::{enum_type, enum_union};
 
@@ -6,6 +8,7 @@ enum_type!(A, Y, Z);
 enum_type!(B, S, T);
 enum_union!(AB, A, B);
 
+// Messages
 struct Message<T: Eq> {
     code: T,
 }
@@ -16,12 +19,15 @@ impl<T: Enum, U> std::cmp::PartialEq<U> for Message<T> {
     }
 }
 
+// Message extensions
 trait Constructor<T> {
     fn new(t: T) -> Self;
 }
 
-trait MessageTrait {
+trait MessageTrait<T> {
     const NAME: &'static str = "";
+
+    fn get_code(&self) -> T;
 }
 
 #[macro_export]
@@ -43,157 +49,105 @@ macro_rules! message {
             }
         })*
 
-        impl MessageTrait for $n {
+        impl MessageTrait<$n1> for $n {
             const NAME: &'static str = stringify!($n);
+
+            fn get_code(&self) -> $n1 {
+                self.msg.code
+            }
         }
     };
 }
 
 message!(MyMessage, MyMessageEnum, A, B);
+message!(OtherMessage, OtherMessageEnum, A);
 
+// Message bus
 // trait SubTrait {
-//     fn get_name(&self) -> &'static str {
-//         ""
-//     }
+//     fn call<T>(&self, t: T);
 // }
 
-// struct Subscription<En> {
-//     code: En,
-//     name: &'static str,
-// }
-
-// impl<En: std::cmp::PartialEq<En2>, En2> std::cmp::PartialEq<En2> for Subscription<En> {
-//     fn eq(&self, other: &En2) -> bool {
-//         self.code == *other
-//     }
-// }
-
-// impl<En> Subscription<En> {
-//     fn handle_message<En2: std::cmp::PartialEq + std::cmp::PartialEq<En>>(
-//         &self,
-//         msg: &Message<En2>,
-//     ) {
-//         if (msg.code == self.code) {
-//             println!("{}", self.name)
-//         }
-//     }
-// }
-
-// fn eq<T, U>(s: &Subscription<T>, m: &Message<T>) -> bool {
-//     false
-// }
-
-// fn eq<T, T>(s: &Subscription<T>, m: &Message<T>) -> bool {
-//     true
-// }
-
-// enum SubTypes {
-//     SubA(Subscription<A>),
-//     SubB(Subscription<B>),
-// }
-
-// impl SubTrait for SubTypes {
-//     fn get_name(&self) -> &'static str {
-//         match self {
-//             SubTypes::SubA(a) => a.name,
-//             SubTypes::SubB(b) => b.name,
-//         }
-//     }
-// }
-
-// // impl<En> std::cmp::PartialEq<Message<En>> for SubTypes {
-// //     fn eq(&self, other: &Message<En>) -> bool {
-// //         match self {
-// //             SubTypes::SubA(a) => matches!(&other.code, a),
-// //             SubTypes::SubB(b) => matches!(&other.code, b),
-// //         }
-// //     }
-// // }
-
-// struct MessageBus {
-//     subs: Vec<SubTypes>,
-// }
-
-// impl MessageBus {
-//     // fn send_msg<En>(&self, msg: Message<En>) {
-//     //     for sub in &self.subs {
-//     //         if *sub == msg {
-//     //             println!("{}", sub.get_name())
-//     //         }
-//     //     }
-//     // }
-
-//     // fn subscribe<En>(&self, name: &'static str, code: En) {
-//     //     self.subs.push(SubTypes::SubA(Subscription {
-//     //         code: code,
-//     //         name: name,
-//     //     }));
-//     // }
-// }
-
-// pub fn test() {
-//     println!("Test");
-//     let msgA: Message<A> = Message { code: A::Y };
-//     let subA: Subscription<A> = Subscription {
-//         code: A::Y,
-//         name: "A::Y",
-//     };
-//     let subB: Subscription<B> = Subscription {
-//         code: B::T,
-//         name: "B::T",
-//     };
-//     let subA2: Subscription<A> = Subscription {
-//         code: A::Z,
-//         name: "A::Z",
-//     };
-//     print!("{}", A::Z == B::T);
-//     subA.handle_message(&msgA);
-//     subA2.handle_message(&msgA);
-//     subB.handle_message(&msgA);
-
-//     // let msg_bus: MessageBus = MessageBus { subs: vec![] };
-//     // msg_bus.subscribe("A::Y", A::Y);
-// }
-
-// Signal/Slot
-trait Signal<T> {
-    fn val(&self) -> T;
+struct Subscription {
+    id: u128,
+    cb: Box<dyn Fn()>,
 }
 
-trait Slot<T, U: Signal<T>> {
-    fn receive_val(&self, val: T);
+// impl<T> SubTrait for Subscription<T> {
+//     fn call(&self, t: T) {
+//         (self.cb)(t);
+//     }
+// }
+
+struct SubscriptionHandle {
+    id: u128,
+    name: &'static str,
 }
 
-struct Container<T, U> {
-    slots: Vec<Box<dyn Slot<T, U>>>,
+struct MessageBus {
+    subs: HashMap<&'static str, Vec<Subscription>>,
 }
 
-impl<T, U: Signal<T>> Container<T, U> {
-    fn add_slot<V: Slot<T, U> + 'static>(&mut self, slot: V) {
-        self.slots.push(Box::new(slot));
+impl MessageBus {
+    fn subscribe<U, T: MessageTrait<U>>(&mut self, cb: &'static dyn Fn()) -> SubscriptionHandle {
+        let id: u128 = self.subs.len() as u128;
+        let sub = Subscription {
+            id: id,
+            cb: Box::new(cb),
+        };
+        match self.subs.get_mut(T::NAME) {
+            Some(v) => v.push(sub),
+            None => {
+                self.subs.insert(T::NAME, Vec::new());
+                match self.subs.get_mut(T::NAME) {
+                    Some(v) => v.push(sub),
+                    None => {
+                        println!(
+                            "MessageBus::subscribe() - Failed to create new subscription vector for {}", T::NAME
+                        )
+                    }
+                }
+            }
+        }
+        SubscriptionHandle {
+            id: id,
+            name: T::NAME,
+        }
     }
 
-    fn send_signal<V: Signal<T>>(&self, sig: &V) {
-        for slot in &self.slots {
-            (*slot).receive_val(sig.val());
+    fn unsubscribe(&mut self, handle: SubscriptionHandle) {
+        match self.subs.get_mut(handle.name) {
+            Some(v) => match v.iter().position(|sub| sub.id == handle.id) {
+                Some(i) => {
+                    v.remove(i);
+                }
+                None => println!(
+                    "MessageBus::unsubscribe() - No subscription with id {}",
+                    handle.id
+                ),
+            },
+            None => println!(
+                "MessageBus::unsubscribe() - No subscription of type {}",
+                handle.name
+            ),
+        }
+    }
+
+    fn send_message<U, T: MessageTrait<U>>(&self, _msg: T) {
+        match self.subs.get(T::NAME) {
+            Some(v) => {
+                for sub in v {
+                    (sub.cb)();
+                }
+            }
+            None => println!(
+                "MessageBus::send_message() - No subscriptions for {}",
+                T::NAME
+            ),
         }
     }
 }
 
-struct TestSignal {}
-impl Signal<u8> for TestSignal {
-    fn val(&self) -> u8 {
-        10
-    }
-}
-
-struct TestSlot {}
-impl Slot<u8, TestSignal> for TestSlot {
-    fn receive_val(&self, val: u8) {
-        println!("TestSlot: {}", val)
-    }
-}
-
+// Test
 pub fn test() {
     println!("Test");
 
@@ -232,9 +186,18 @@ pub fn test() {
     let msg2 = MyMessage::new(B::S);
     println!("{} {}", msg.msg.code, msg2.msg.code);
 
-    let mut container: Container<u8, TestSignal> = Container { slots: vec![] };
-    let sig: TestSignal = TestSignal {};
-    let slot: TestSlot = TestSlot {};
-    container.add_slot(slot);
-    container.send_signal(&sig);
+    let mut mb = MessageBus {
+        subs: HashMap::new(),
+    };
+    let sub = mb.subscribe::<MyMessageEnum, MyMessage>(&|| println!("Hello From Callback"));
+    println!("Sub Id: {}", sub.id);
+    mb.send_message(msg);
+    mb.send_message(OtherMessage::new(A::Z));
+    mb.unsubscribe(SubscriptionHandle {
+        id: 2,
+        name: "MyMessage",
+    });
+    mb.unsubscribe(sub);
+    mb.send_message(msg2);
+    println!("Shouldn't print");
 }

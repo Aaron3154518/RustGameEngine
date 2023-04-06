@@ -1,11 +1,11 @@
-use crate::enum_type;
 use crate::enums::Eq;
+use crate::{enum_type, enum_union};
 
 struct Message<T: Eq> {
     code: T,
 }
 
-impl<T: Eq + std::fmt::Debug, U: std::fmt::Debug> std::cmp::PartialEq<U> for Message<T> {
+impl<T: Eq, U> std::cmp::PartialEq<U> for Message<T> {
     default fn eq(&self, other: &U) -> bool {
         self.code.equals(other)
     }
@@ -118,6 +118,7 @@ impl<T: Eq + std::fmt::Debug, U: std::fmt::Debug> std::cmp::PartialEq<U> for Mes
 // Enums
 enum_type!(A, Y, Z);
 enum_type!(B, S, T);
+enum_union!(AB, A, B);
 
 // Signal/Slot
 trait Signal<T> {
@@ -160,14 +161,26 @@ impl Slot<u8, TestSignal> for TestSlot {
 
 pub fn test() {
     println!("Test");
+
     println!(
         "{} {} {}",
         A::Y.equals(&A::Y),
         A::Y.equals(&A::Z),
         A::Y.equals(&B::T)
     );
-    let msg = Message { code: A::Y };
-    println!("{} {} {}", msg == A::Y, msg == A::Z, msg == B::T,);
+
+    let msg = Message { code: AB::A(A::Y) };
+    println!("{} {} {}", msg == A::Y, msg == A::Z, msg == B::T);
+
+    let ab = AB::A(A::Y);
+    println!("{} {} {}", ab == A::Y, ab == A::Z, ab == B::T);
+    println!(
+        "{} {} {}",
+        ab.equals(&A::Y),
+        ab.equals(&A::Z),
+        ab.equals(&B::T)
+    );
+
     let mut container: Container<u8, TestSignal> = Container { slots: vec![] };
     let sig: TestSignal = TestSignal {};
     let slot: TestSlot = TestSlot {};

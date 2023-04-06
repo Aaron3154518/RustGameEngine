@@ -43,6 +43,26 @@ macro_rules! enum_union {
             $($e($e)),*
         }
 
+        $(impl std::cmp::PartialEq<$e> for $n {
+            fn eq(&self, other: &$e) -> bool {
+                match self {
+                    $n::$e(v) => v.equals(other),
+                    _ => false
+                }
+            }
+        })*
+
+        impl Eq for $n {
+            fn equals<T>(&self, t: &T) -> bool
+            where
+                Self: Sized,
+            {
+                match self {
+                    $($n::$e(v) => v.equals(t)),*
+                }
+            }
+        }
+
         impl std::fmt::Display for $n {
             fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                 match self {

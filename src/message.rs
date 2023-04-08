@@ -20,7 +20,7 @@ pub trait MessageTrait<T> {
 // Subscriptions
 pub trait SubTrait {
     fn get_id(&self) -> u128;
-    fn call<'a>(&'a self, v: &'a Master) -> Option<Box<dyn Fn() + '_>>;
+    fn call(&self, v: Master);
 }
 
 pub struct Subscription<T> {
@@ -33,9 +33,7 @@ impl<T> SubTrait for Subscription<T> {
         self.id
     }
 
-    default fn call<'a>(&'a self, _v: &'a Master) -> Option<Box<dyn Fn() + '_>> {
-        None
-    }
+    default fn call(&self, _v: Master) {}
 }
 
 // Messages
@@ -63,10 +61,10 @@ macro_rules! message {
         }
 
         impl message::SubTrait for message::Subscription<$n1> {
-            fn call<'a>(&'a self, v: &'a message::Master) -> Option<Box<dyn Fn() + '_>> {
+            fn call(& self, v: message::Master) {
                 match v {
-                    message::Master::$n1(x) => Some(Box::new(move || (self.cb)(x))),
-                    _ => None,
+                    message::Master::$n1(x) => (self.cb)(&x),
+                    _ => (),
                 }
             }
         }
@@ -124,9 +122,9 @@ impl MessageBus {
         }
     }
 
-    pub fn subscribe<U, T: MessageTrait<U>>(
+    pub fn subscribe<U: 'static, T: MessageTrait<U>>(
         &mut self,
-        cb: &'static dyn Fn(&U),
+        cb: impl Fn(&U) + 'static,
     ) -> SubscriptionHandle<U, T> {
         let id: u128 = self.subs.len() as u128;
         let sub = Subscription {
@@ -175,13 +173,7 @@ impl MessageBus {
         match self.subs.get(T::NAME) {
             Some(v) => {
                 for sub in v {
-                    match sub.call(&Master::new(msg.get_code())) {
-                        Some(f) => (f)(),
-                        None => println!(
-                            "MessageBus::send_message() - Could not call callback got {}",
-                            T::NAME,
-                        ),
-                    };
+                    sub.call(Master::new(msg.get_code()))
                 }
             }
             None => println!(

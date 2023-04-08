@@ -1,6 +1,8 @@
 *.exe
 *.pdb
 .vscode
+_test
+src/_test.rs
 
 # Added by cargo
 

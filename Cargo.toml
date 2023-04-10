@@ -2,8 +2,19 @@
 name = "RustGameEngine"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+build = "build.rs"
 
 [dependencies]
-rand = "0.8.5"
+num-derive = "0.3.3"
+num-traits = "0.2.15"
+
+[build-dependencies]
+bindgen = "0.64.0"
+
+[package.metadata.bindings.sdl2_image]
+path = "src/sdl2_image_bindings.rs"
+links = ["SDL2_image"]
+
+[package.metadata.bindings.sdl2]
+path = "src/sdl2_bindings.rs"
+links = ["SDL2"]

@@ -1,18 +1,11 @@
-#![allow(
-    unused_variables,
-    unused_assignments,
-    dead_code,
-    non_camel_case_types,
-    non_upper_case_globals,
-    non_snake_case
-)]
+#![feature(specialization)]
+#![feature(trait_alias)]
 
-mod sdl2 {
-    include!(concat!(env!("OUT_DIR"), "/sdl2_bindings.rs"));
-}
-mod sdl2_image {
-    include!(concat!(env!("OUT_DIR"), "/sdl2_image_bindings.rs"));
-}
+mod sdl2_bindings;
+use sdl2_bindings::sdl2_ as sdl2;
+
+mod sdl2_image_bindings;
+use sdl2_image_bindings::sdl2_image_ as sdl2_image;
 
 use std::mem;
 

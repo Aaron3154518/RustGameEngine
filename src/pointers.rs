@@ -81,6 +81,10 @@ impl Drop for Renderer {
 }
 
 // Texture
+pub trait TextureTrait {
+    fn draw(&self, r: &Renderer, src: *const sdl2::SDL_Rect, dest: *const sdl2::SDL_Rect);
+}
+
 pub struct Texture {
     tex: NonNull<sdl2::SDL_Texture>,
 }
@@ -94,15 +98,27 @@ impl Texture {
         }
     }
 
-    pub fn draw(&self, r: &Renderer, src: *const sdl2::SDL_Rect, dest: *const sdl2::SDL_Rect) {
-        unsafe {
-            sdl2::SDL_RenderCopy(r.r.as_ptr(), self.tex.as_ptr(), src, dest);
-        }
+    pub fn access(&self) -> TextureAccess {
+        TextureAccess { tex: self.tex }
     }
 }
 
 impl Drop for Texture {
     fn drop(&mut self) {
         unsafe { sdl2::SDL_DestroyTexture(self.tex.as_ptr()) }
+    }
+}
+
+// TextureAccess
+#[derive(Copy, Clone)]
+pub struct TextureAccess {
+    pub(crate) tex: NonNull<sdl2::SDL_Texture>,
+}
+
+impl TextureTrait for TextureAccess {
+    fn draw(&self, r: &Renderer, src: *const sdl2::SDL_Rect, dest: *const sdl2::SDL_Rect) {
+        unsafe {
+            sdl2::SDL_RenderCopy(r.r.as_ptr(), self.tex.as_ptr(), src, dest);
+        }
     }
 }

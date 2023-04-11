@@ -9,8 +9,14 @@ use sdl2_image_bindings::sdl2_image_ as sdl2_image;
 
 use std::mem;
 
+mod asset_manager;
+use asset_manager::RenderSystem;
+
 mod pointers;
 use pointers::*;
+
+mod globals;
+use globals::Globals;
 
 use num_traits::FromPrimitive;
 
@@ -30,11 +36,22 @@ fn main() {
             eprintln!("SDL_Image Failed to Initialize");
         }
 
-        // Create a window
-        let window = Window::new().title("Game Engine").dimensions(960, 720);
+        let w = 960;
+        let h = 720;
+        let img_w = 100;
 
-        let renderer = Renderer::new(&window);
-        let tex = Texture::new(&renderer, "res/bra_vector.png");
+        // Create a window
+        let mut globals = Globals {
+            rs: RenderSystem::new(Window::new().title("Game Engine").dimensions(w, h)),
+        };
+
+        let tex = globals.rs.get_image("res/bra_vector.png");
+        let rect = sdl2::SDL_Rect {
+            x: (w - img_w) / 2,
+            y: (h - img_w) / 2,
+            w: img_w,
+            h: img_w,
+        };
 
         // Wait for a key press
         sdl2::SDL_EventState(
@@ -53,20 +70,17 @@ fn main() {
                 _ => (),
             }
 
-            renderer.clear();
+            // Clear the screen
+            globals.rs.r.clear();
 
-            // Draw the texture to the center of the screen
-            let mut dest_rect = sdl2::SDL_Rect {
-                x: (640 - 100) as i32 / 2,
-                y: (480 - 100) as i32 / 2,
-                w: 100 as i32,
-                h: 100 as i32,
-            };
-            tex.draw(&renderer, std::ptr::null(), &mut dest_rect);
+            draw!(globals.rs, tex, std::ptr::null(), &rect);
 
             // Update the screen
-            renderer.present();
+            globals.rs.r.present();
         }
+
+        // Destroy globals
+        drop(globals);
 
         // Destroy the window and quit SDL2
         sdl2_image::IMG_Quit();

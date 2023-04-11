@@ -1,10 +1,12 @@
 use crate::sdl2;
 
+#[derive(Clone, Copy)]
 pub struct Dimensions {
-    pub w: u32,
-    pub h: u32,
+    pub w: i32,
+    pub h: i32,
 }
 
+#[derive(Clone, Copy)]
 pub struct DimensionsF {
     pub w: f32,
     pub h: f32,
@@ -13,6 +15,14 @@ pub struct DimensionsF {
 pub type Point = sdl2::SDL_Point;
 pub type PointF = sdl2::SDL_FPoint;
 
+impl Point {
+    pub fn dist(&self, p: &Point) -> f32 {
+        (((self.x - p.x).pow(2) + (self.y - p.y).pow(2)) as f32).sqrt()
+    }
+}
+
+#[repr(u8)]
+#[derive(Clone, Copy)]
 pub enum Align {
     TopLeft = 0,
     Center,
@@ -21,10 +31,10 @@ pub enum Align {
 
 #[derive(Copy, Clone)]
 pub struct Rect {
-    x: f32,
-    y: f32,
-    w: f32,
-    h: f32,
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
 }
 
 impl Rect {
@@ -132,6 +142,13 @@ impl Rect {
         self.h
     }
 
+    pub fn dim(&self) -> DimensionsF {
+        DimensionsF {
+            w: self.w,
+            h: self.h,
+        }
+    }
+
     pub fn half_w(&self) -> f32 {
         self.w / 2.0
     }
@@ -185,6 +202,13 @@ impl Rect {
 
     pub fn h_i32(&self) -> i32 {
         self.h().round() as i32
+    }
+
+    pub fn dim_i32(&self) -> Dimensions {
+        Dimensions {
+            w: self.w_i32(),
+            h: self.h_i32(),
+        }
     }
 
     pub fn half_w_i32(&self) -> i32 {
@@ -295,7 +319,9 @@ impl Rect {
         self.set_y(self.get_y(ay) * y_factor, ay);
     }
 
-    pub fn resize(&mut self, factor: f32, ax: Align, ay: Align) {}
+    pub fn resize(&mut self, factor: f32, ax: Align, ay: Align) {
+        self.set_dim(self.w * factor, self.h * factor, ax, ay)
+    }
 
     pub fn fit_within(&mut self, r: &Rect) {
         self.set_x(self.x.min(r.x2() - self.w).max(r.x()), Align::TopLeft);

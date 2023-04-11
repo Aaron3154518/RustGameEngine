@@ -18,6 +18,10 @@ use pointers::*;
 mod globals;
 use globals::Globals;
 
+mod event;
+mod rect;
+use rect::Rect;
+
 use num_traits::FromPrimitive;
 
 fn main() {
@@ -46,7 +50,7 @@ fn main() {
         };
 
         let tex = globals.rs.get_image("res/bra_vector.png");
-        let rect = sdl2::SDL_Rect {
+        let rect = Rect {
             x: (w - img_w) / 2,
             y: (h - img_w) / 2,
             w: img_w,

@@ -17,8 +17,18 @@ use num_traits::FromPrimitive;
 fn main() {
     unsafe {
         // Initialize SDL2
-        let sdl_init = sdl2::SDL_Init(sdl2::SDL_INIT_EVERYTHING);
-        let img_init = sdl2_image::IMG_Init(sdl2_image::IMG_InitFlags::IMG_INIT_PNG as i32);
+        if sdl2::SDL_Init(sdl2::SDL_INIT_EVERYTHING) == 0 {
+            println!("SDL Initialized");
+        } else {
+            eprintln!("SDL Failed to Initialize");
+        }
+        let img_init_flags = sdl2_image::IMG_InitFlags::IMG_INIT_PNG as i32
+            | sdl2_image::IMG_InitFlags::IMG_INIT_JPG as i32;
+        if sdl2_image::IMG_Init(img_init_flags) & img_init_flags == img_init_flags {
+            println!("SDL_Image Initialized");
+        } else {
+            eprintln!("SDL_Image Failed to Initialize");
+        }
 
         // Create a window
         let window = Window::new().title("Game Engine").dimensions(960, 720);
